@@ -9,7 +9,7 @@ import os
 
 # LAMPUNG_gdb
 # 0 = TRAFO
-# 1 = TIANG
+# 1 = TIANGTR
 # 2 = APP
 
 TOKEN_URL = "https://www.arcgis.com/sharing/rest/generateToken"
@@ -21,8 +21,8 @@ GIS_PASSWORD = os.getenv("ARC_PASSWORD")
 LOCAL_FOLDER = "/home/satrio/Documents/Coding/ARCGIS/cache"
 
 
-FOLDER_NAME = "GIS_LOCAL_ICON_PJA"
-SUBFOLDER_NAME = "APP"
+FOLDER_NAME = "LAMPUNG"
+SUBFOLDER_NAME = "TIANGTR"
 DATA_FORMAT = "gdb"
 OUTPUT_FILE_CSV = f"attachment_data_{SUBFOLDER_NAME}"
 OUTPUT_CSV = f"{OUTPUT_FILE_CSV.lower()}.csv"
@@ -31,4 +31,5 @@ OUTPUT_CSV = f"{OUTPUT_FILE_CSV.lower()}.csv"
 #==================== Jika anda ingin mengubah url jangan lupa pastikan id perusahaan, feature services dan layer id disesuakan terlebih dahulu =========================#
 COMPANYID = "AWkOhszHWY9EsWKO"
 SAVE_FOLDER = f"/media/satrio/TOSHIBA/NEW/{FOLDER_NAME}/{SUBFOLDER_NAME}" #Sesuaikan dengan layer yang ingin di unduh
-FEATURE_LAYER_URL = f"https://services6.arcgis.com/{COMPANYID}/arcgis/rest/services/{FOLDER_NAME}/FeatureServer/8" #Ubah ID akhir untuk memilih layer
+SAVE_FOLDER2 = f"/media/satrio/TOSHIBA/NEW/{FOLDER_NAME}" #Sesuaikan dengan layer yang ingin di unduh
+FEATURE_LAYER_URL = f"https://services6.arcgis.com/{COMPANYID}/arcgis/rest/services/{FOLDER_NAME}_gdb/FeatureServer" #Ubah ID akhir untuk memilih layer

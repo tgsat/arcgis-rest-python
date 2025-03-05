@@ -39,5 +39,5 @@ def rename_att_name_in_csv(csv_file_path):
     print(f"✅ Berhasil mengubah nama di kolom 'att_name' pada CSV {csv_file_path}.")
 
 # 📌 Panggil fungsi setelah semua proses selesai
-csv_file_path = f"{config.SAVE_FOLDER}/{config.OUTPUT_CSV}"
+csv_file_path = f"{config.SAVE_FOLDER2}/{config.OUTPUT_CSV}"
 rename_att_name_in_csv(csv_file_path)
