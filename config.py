@@ -29,7 +29,7 @@ OUTPUT_CSV = f"{OUTPUT_FILE_CSV.lower()}.csv"
 
 
 #==================== Jika anda ingin mengubah url jangan lupa pastikan id perusahaan, feature services dan layer id disesuakan terlebih dahulu =========================#
-COMPANYID = "AWkOhszHWY9EsWKO"
+COMPANYID = os.getenv("COMPANYID")
 SAVE_FOLDER = f"/media/satrio/TOSHIBA/NEW/{FOLDER_NAME}/{SUBFOLDER_NAME}" #Sesuaikan dengan layer yang ingin di unduh
 SAVE_FOLDER2 = f"/media/satrio/TOSHIBA/NEW/{FOLDER_NAME}" #Sesuaikan dengan layer yang ingin di unduh
 FEATURE_LAYER_URL = f"https://services6.arcgis.com/{COMPANYID}/arcgis/rest/services/{FOLDER_NAME}_gdb/FeatureServer" #Ubah ID akhir untuk memilih layer
