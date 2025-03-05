@@ -156,6 +156,10 @@ def download_attachments(object_ids, layer_url, token, csv_file_path):
             try:
                 future.result()
                 print(f"Info: Attachment untuk OBJECTID {object_id} selesai diproses.")
+                
+                # 🔄 Perbarui offset.txt setelah semua attachment untuk OBJECTID ini selesai
+                save_last_objectid(object_id)  # ⬅️ Pindahkan perintah ini ke sini
+                
             except Exception as e:
                 print(f"Error saat memproses OBJECTID {object_id}: {e}")
 
