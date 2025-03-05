@@ -5,26 +5,36 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import config
 import subprocess
 import sys
+import threading
+
 
 TOKEN_EXPIRY = 50 * 60  # 50 menit
 
 save_folder_offset = config.LOCAL_FOLDER
 offset_file = os.path.join(save_folder_offset, "offset.txt")
 
-# 1️⃣ Muat variabel dari file .env
 config.LOADENV
 print("Variabel dari file .env berhasil dimuat.")
 
-# Ambil kredensial dari environment variables
 username = config.GIS_USERNAME
 password = config.GIS_PASSWORD
 
-# Pastikan kredensial tersedia
 if not username or not password:
     print("Username atau password tidak ditemukan dalam file .env")
     exit(1)
 
-# Fungsi untuk mendapatkan token (jika diperlukan)
+lock = threading.Lock()  # 🔒 Lock untuk penguncian akses ke offset.txt
+
+# 🔄 Cek dan buat offset.txt jika belum ada
+if not os.path.exists(offset_file):
+    os.makedirs(save_folder_offset, exist_ok=True)  # Buat folder jika belum ada
+    with open(offset_file, "w") as f:
+        f.write("0")
+    print(f"📂 offset.txt dibuat dengan nilai awal 0 di lokasi: {os.path.abspath(offset_file)}")
+else:
+    print(f"📂 offset.txt ditemukan di lokasi: {os.path.abspath(offset_file)}")
+
+
 def get_token():
     token_url = config.TOKEN_URL
     token_params = {
@@ -33,21 +43,18 @@ def get_token():
         "referer": config.REFERER,
         "f": "json"
     }
-    
     try:
         token_response = requests.post(token_url, data=token_params)
-        
         if token_response.status_code == 200:
             token_data = token_response.json()
             print("🔑 Token berhasil didapatkan.")
             return token_data.get('token')
         else:
             print(f"Error mendapatkan token: {token_response.status_code}")
-            return None
     except Exception as e:
-        return None
+        print(f"Exception saat mendapatkan token: {e}")
+    return None
 
-# Fungsi untuk mengecek apakah attachment sudah pernah disimpan
 def is_skipped(attachment_id, csv_file_path):
     if os.path.exists(csv_file_path):
         df = pd.read_csv(csv_file_path, usecols=["attachment_id"])
@@ -56,14 +63,25 @@ def is_skipped(attachment_id, csv_file_path):
             return True
     return False
 
-# Fungsi untuk menyimpan data attachment ke CSV secara real-time
-def save_attachment_data(attachment_info, csv_file_path):
+def save_last_objectid(objectid):
+    """Simpan last_objectid ke file offset.txt dengan mode 'w' untuk overwrite"""
+    try:
+        with lock:  # 🔒 Menggunakan lock saat menulis file
+            with open(offset_file, "w") as f:
+                f.write(str(objectid))
+        print(f"✅ Last OBJECTID diperbarui: {objectid}")
+    except Exception as e:
+        print(f"❌ Gagal menyimpan last_objectid: {e}")
+
+def save_attachment_data(attachment_info, csv_file_path, object_id):
     df = pd.DataFrame([attachment_info])
     df.to_csv(csv_file_path, mode='a', header=not os.path.exists(csv_file_path), index=False)
     print(f"✅ Berhasil Disimpan: Data attachment {attachment_info['attachment_id']}.")
 
+    # 🔄 Perbarui offset.txt setelah data attachment berhasil disimpan
+    save_last_objectid(object_id)  # Gunakan object_id (integer) untuk offset.txt
+
 def get_last_objectid():
-    """Membaca last_objectid dari offset.txt, jika tidak ada, kembalikan 0"""
     if os.path.exists(offset_file):
         try:
             with open(offset_file, "r") as f:
@@ -74,18 +92,8 @@ def get_last_objectid():
                     return last_id
         except Exception as e:
             print(f"❌ Gagal membaca offset.txt: {e}")
-    
     print("📂 offset.txt tidak ditemukan atau kosong. Menggunakan OBJECTID = 0")
     return 0
-
-def save_last_objectid(objectid):
-    """Simpan last_objectid ke file offset.txt dengan mode 'w' untuk overwrite"""
-    try:
-        with open(offset_file, "w") as f:
-            f.write(str(objectid))
-        print(f"✅ Last OBJECTID diperbarui: {objectid}")
-    except Exception as e:
-        print(f"❌ Gagal menyimpan last_objectid: {e}")
 
 def get_attachments(layer_url, object_id, token, csv_file_path):
     attachment_url = f"{layer_url}/{object_id}/attachments"
@@ -123,13 +131,14 @@ def get_attachments(layer_url, object_id, token, csv_file_path):
                         "size": attachment.get("size")
                     }
 
-                    save_attachment_data(attachment_info, csv_file_path)
+                    # 🔄 Berikan object_id ke save_attachment_data
+                    save_attachment_data(attachment_info, csv_file_path, object_id)
             else:
                 print(f"Tidak ada attachment untuk OBJECTID: {object_id}")
         else:
             print(f"Gagal mendapatkan attachments untuk OBJECTID : {object_id}, Error code : {response.status_code}")
     except Exception as e:
-        pass
+        print(f"Error saat mengambil attachments: {e}")
 
 def download_attachments(object_ids, layer_url, token, csv_file_path):
     if not object_ids:
@@ -148,10 +157,7 @@ def download_attachments(object_ids, layer_url, token, csv_file_path):
                 future.result()
                 print(f"Info: Attachment untuk OBJECTID {object_id} selesai diproses.")
             except Exception as e:
-                pass
-
-    last_processed_id = max(object_ids)
-    save_last_objectid(last_processed_id)
+                print(f"Error saat memproses OBJECTID {object_id}: {e}")
 
 layer_url = config.FEATURE_LAYER_URL
 last_objectid = get_last_objectid()
@@ -161,12 +167,10 @@ if not token:
     print("Gagal Mendapatkan token atau periksa koneksi anda.")
     exit(1)
 
-csv_file_path = f"{config.SAVE_FOLDER}/{config.OUTPUT_CSV}"
+csv_file_path = f"{config.SAVE_FOLDER2}/{config.OUTPUT_CSV}"
 
 def get_object_ids(layer_url, token, last_objectid):
     query_url = f"{layer_url}/query"
-    all_features = []
-
     params = {
         "where": f"OBJECTID >= {last_objectid}",
         "outFields": "OBJECTID",
@@ -178,15 +182,14 @@ def get_object_ids(layer_url, token, last_objectid):
         response = requests.get(query_url, params=params)
         if response.status_code == 200:
             data = response.json()
-            all_features.extend(data.get('features', []))
-            print(f"Object IDs berhasil didapatkan: {len(all_features)} item.")
+            object_ids = [int(feature['attributes']['OBJECTID']) for feature in data.get('features', [])]
+            print(f"Object IDs berhasil didapatkan: {len(object_ids)} item.")
+            return object_ids
         else:
             print(f"Error mendapatkan object IDs: {response.status_code}")
     except requests.exceptions.RequestException as e:
-        pass
-
-    object_ids = [int(feature['attributes']['OBJECTID']) for feature in all_features]
-    return object_ids
+        print(f"Request error: {e}")
+    return []
 
 object_ids = get_object_ids(layer_url, token, last_objectid)
 
@@ -194,33 +197,3 @@ if object_ids:
     download_attachments(object_ids, layer_url, token, csv_file_path)
 else:
     print("Tidak ada object_id yang ditemukan.")
-
-def cek_last_objectid():
-    """Cek apakah last_objectid lebih dari 0 dari file offset.txt."""
-    if os.path.exists(offset_file):
-        with open(offset_file, "r") as f:
-            content = f.read().strip()
-            if content.isdigit() and int(content) > 0:
-                return True
-    return False
-
-def main():
-    if cek_last_objectid():
-        print("Last Object ID ditemukan. Memulai eksekusi otomatis...")
-    else:
-        pilihan = input("Apakah Anda ingin menjalankan secara otomatis? (Ya/Tidak): ").strip().lower()
-        if pilihan != "ya":
-            print("Eksekusi dibatalkan oleh pengguna.")
-            sys.exit()
-
-    object_ids = get_object_ids(layer_url, token, last_objectid)
-
-    if object_ids:
-        download_attachments(object_ids, layer_url, token, csv_file_path)
-    else:
-        print("Tidak ada object_id yang ditemukan.")
-
-    print("Proses selesai.")
-
-if __name__ == "__main__":
-    main()
